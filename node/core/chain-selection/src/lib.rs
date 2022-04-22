@@ -20,7 +20,7 @@ use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{ChainApiMessage, ChainSelectionMessage},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	overseer::{self, SubsystemSender}, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
@@ -319,12 +319,7 @@ impl ChainSelectionSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = ChainSelectionMessage,
-		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ChainSelectionContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = crate::db_backend::v1::DbBackend::new(
@@ -347,12 +342,7 @@ async fn run<Context, B>(
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
 ) where
-	Context: overseer::SubsystemContext<
-		Message = ChainSelectionMessage,
-		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ChainSelectionContextTrait,
 	B: Backend,
 {
 	loop {
@@ -383,12 +373,7 @@ async fn run_until_error<Context, B>(
 	clock: &(dyn Clock + Sync),
 ) -> Result<(), Error>
 where
-	Context: overseer::SubsystemContext<
-		Message = ChainSelectionMessage,
-		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ChainSelectionContextTrait,
 	B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
@@ -403,7 +388,7 @@ where
 					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 						for leaf in update.activated {
 							let write_ops = handle_active_leaf(
-								ctx,
+								ctx.sender(),
 								&*backend,
 								clock.timestamp_now() + STAGNANT_TIMEOUT,
 								leaf.hash,
@@ -420,7 +405,7 @@ where
 							handle_approved_block(backend, hash)?
 						}
 						ChainSelectionMessage::Leaves(tx) => {
-							let leaves = load_leaves(ctx, &*backend).await?;
+							let leaves = load_leaves(ctx.sender(), &*backend).await?;
 							let _ = tx.send(leaves);
 						}
 						ChainSelectionMessage::BestLeafContaining(required, tx) => {
@@ -447,11 +432,11 @@ where
 }
 
 async fn fetch_finalized(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl SubsystemSender<ChainApiMessage>,
 ) -> Result<Option<(Hash, BlockNumber)>, Error> {
 	let (number_tx, number_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
+	sender.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
 	let number = match number_rx.await? {
 		Ok(number) => number,
@@ -463,7 +448,7 @@ async fn fetch_finalized(
 
 	let (hash_tx, hash_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
+	sender.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
 	match hash_rx.await? {
 		Err(err) => {
@@ -479,11 +464,11 @@ async fn fetch_finalized(
 }
 
 async fn fetch_header(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl SubsystemSender<ChainApiMessage>,
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
+	sender.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
 
 	Ok(rx.await?.unwrap_or_else(|err| {
 		gum::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
@@ -492,11 +477,11 @@ async fn fetch_header(
 }
 
 async fn fetch_block_weight(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::SubsystemSender<ChainApiMessage>,
 	hash: Hash,
 ) -> Result<Option<BlockWeight>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
+	sender.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
 	let res = rx.await?;
 
@@ -508,7 +493,7 @@ async fn fetch_block_weight(
 
 // Handle a new active leaf.
 async fn handle_active_leaf(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::ChainSelectionSenderTrait,
 	backend: &impl Backend,
 	stagnant_at: Timestamp,
 	hash: Hash,
@@ -520,10 +505,10 @@ async fn handle_active_leaf(
 			// tree.
 			l.saturating_sub(1)
 		},
-		None => fetch_finalized(ctx).await?.map_or(1, |(_, n)| n),
+		None => fetch_finalized(sender).await?.map_or(1, |(_, n)| n),
 	};
 
-	let header = match fetch_header(ctx, hash).await? {
+	let header = match fetch_header(sender, hash).await? {
 		None => {
 			gum::warn!(target: LOG_TARGET, ?hash, "Missing header for new head");
 			return Ok(Vec::new())
@@ -532,7 +517,7 @@ async fn handle_active_leaf(
 	};
 
 	let new_blocks = polkadot_node_subsystem_util::determine_new_blocks(
-		ctx.sender(),
+		sender,
 		|h| backend.load_block_entry(h).map(|b| b.is_some()),
 		hash,
 		&header,
@@ -545,7 +530,7 @@ async fn handle_active_leaf(
 	// determine_new_blocks gives blocks in descending order.
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
-		let weight = match fetch_block_weight(ctx, hash).await? {
+		let weight = match fetch_block_weight(sender, hash).await? {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -656,13 +641,13 @@ fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Err
 // Load the leaves from the backend. If there are no leaves, then return
 // the finalized block.
 async fn load_leaves(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::SubsystemSender<ChainApiMessage>,
 	backend: &impl Backend,
 ) -> Result<Vec<Hash>, Error> {
 	let leaves: Vec<_> = backend.load_leaves()?.into_hashes_descending().collect();
 
 	if leaves.is_empty() {
-		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))
+		Ok(fetch_finalized(sender).await?.map_or(Vec::new(), |(h, _)| vec![h]))
 	} else {
 		Ok(leaves)
 	}
