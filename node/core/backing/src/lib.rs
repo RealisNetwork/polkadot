@@ -297,7 +297,7 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
@@ -322,7 +322,7 @@ async fn store_available_data(
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 async fn make_pov_available(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -355,7 +355,7 @@ async fn make_pov_available(
 }
 
 async fn request_pov(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
@@ -377,7 +377,7 @@ async fn request_pov(
 }
 
 async fn request_candidate_validation(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
@@ -415,7 +415,7 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl SubsystemSender,
+		impl overseer::BackingSenderTrait,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>,
 ) -> Result<(), Error> {
@@ -520,7 +520,7 @@ impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(
 		mut self,
-		mut sender: JobSender<impl SubsystemSender>,
+		mut sender: JobSender<impl overseer::BackingSenderTrait>,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
@@ -552,7 +552,7 @@ impl CandidateBackingJob {
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -631,9 +631,9 @@ impl CandidateBackingJob {
 
 	async fn background_validate_and_make_available(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		params: BackgroundValidationParams<
-			impl SubsystemSender,
+			impl overseer::BackingSenderTrait,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
 		>,
 	) -> Result<(), Error> {
@@ -670,7 +670,7 @@ impl CandidateBackingJob {
 		&mut self,
 		parent_span: &jaeger::Span,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -723,7 +723,7 @@ impl CandidateBackingJob {
 
 	async fn sign_import_and_distribute_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		statement: Statement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
@@ -739,7 +739,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl SubsystemSender>) {
+	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl overseer::BackingSenderTrait>) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
@@ -755,7 +755,7 @@ impl CandidateBackingJob {
 	/// Import a statement into the statement table and return the summary of the import.
 	async fn import_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
@@ -854,7 +854,7 @@ impl CandidateBackingJob {
 	/// is meant to check the signature and provenance of all statements before submission.
 	async fn dispatch_new_statement_to_dispute_coordinator(
 		&self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		candidate_hash: CandidateHash,
 		statement: &SignedFullStatement,
 	) -> Result<(), ValidatorIndexOutOfBounds> {
@@ -904,7 +904,7 @@ impl CandidateBackingJob {
 	async fn process_msg(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		msg: CandidateBackingMessage,
 	) -> Result<(), Error> {
 		match msg {
@@ -980,7 +980,7 @@ impl CandidateBackingJob {
 	/// Kick off validation work and distribute the result as a signed statement.
 	async fn kick_off_validation_work(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		attesting: AttestingData,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
@@ -1034,7 +1034,7 @@ impl CandidateBackingJob {
 	async fn maybe_validate_and_import(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut JobSender<impl overseer::BackingSenderTrait>,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(sender, &statement, root_span).await? {
@@ -1167,7 +1167,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "candidate-backing-job";
 
-	fn run<S: SubsystemSender>(
+	fn run<S: overseer::CandidateBackingSenderTrait>(
 		leaf: ActivatedLeaf,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
