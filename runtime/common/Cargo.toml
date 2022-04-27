@@ -37,7 +37,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", default-feat
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
+#pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
 pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.19" }
 
@@ -82,7 +82,7 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
-	"pallet-beefy-mmr/std",
+#	"pallet-beefy-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
