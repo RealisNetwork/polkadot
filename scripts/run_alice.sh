@@ -3,6 +3,7 @@
 --alice \
 --validator \
 --base-path /tmp/relay/alice \
---chain chain-spec.json \
+--chain customSpec.json \
 --port 30333 \
---ws-port 9944
+--ws-port 9944 \
+--rpc-cors all
