@@ -18,6 +18,7 @@
 
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
+use hex_literal::hex;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
 #[cfg(feature = "kusama-native")]
