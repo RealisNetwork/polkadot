@@ -382,8 +382,12 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		authority_discovery: polkadot::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
+		sudo: polkadot::SudoConfig { key: Some(hex!["10f908b91793b30fc4870e255a0e102745e2a8f268814cd28389ba7f4220764d"].into()) },
 		treasury: Default::default(),
 		hrmp: Default::default(),
+		registrar: polkadot_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+		},
 		configuration: polkadot::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
@@ -1333,7 +1337,11 @@ pub fn polkadot_testnet_genesis(
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		sudo: polkadot::SudoConfig { key: Some(hex!["10f908b91793b30fc4870e255a0e102745e2a8f268814cd28389ba7f4220764d"].into()) },
 		hrmp: Default::default(),
+		registrar: polkadot_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+		},
 		configuration: polkadot::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
