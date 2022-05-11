@@ -3,7 +3,7 @@
 --alice \
 --validator \
 --base-path /tmp/relay/alice \
---chain customSpec.json \
+--chain res/realis-testnet-plain.json \
 --port 30333 \
 --ws-port 9944 \
 --rpc-cors all

@@ -25,6 +25,7 @@ use runtime_common::{
 	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
 	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
 	CurrencyToVote, SlowAdjustingFeeUpdate,
+	paras_sudo_wrapper
 };
 
 use runtime_parachains::{
@@ -184,7 +185,9 @@ impl Contains<Call> for BaseFilter {
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
 			Call::BagsList(_) |
-			Call::XcmPallet(_) => true,
+			Call::XcmPallet(_) | 
+			Call::Sudo(_) |
+			Call::ParasSudoWrapper(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -1352,6 +1355,13 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
+impl pallet_sudo::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+}
+
+impl paras_sudo_wrapper::Config for Runtime {}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1444,6 +1454,9 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		Sudo: pallet_sudo,
 	}
 }
 

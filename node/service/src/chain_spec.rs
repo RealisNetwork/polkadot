@@ -388,6 +388,101 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+
+		sudo: polkadot::SudoConfig { key: None },
+	}
+}
+
+#[cfg(feature = "polkadot-native")]
+fn realis_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
+	use hex_literal::hex;
+
+	// subkey inspect "$SECRET"
+	let endowed_accounts = vec![
+		hex!["10f908b91793b30fc4870e255a0e102745e2a8f268814cd28389ba7f4220764d"].into()
+	];
+
+	let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		BabeId,
+		GrandpaId,
+		ImOnlineId,
+		ValidatorId,
+		AssignmentId,
+		AuthorityDiscoveryId,
+	)> = vec![];
+
+	const ENDOWMENT: u128 = 1_000_000 * DOT;
+	const STASH: u128 = 100 * DOT;
+
+	polkadot::GenesisConfig {
+		system: polkadot::SystemConfig { code: wasm_binary.to_vec() },
+		balances: polkadot::BalancesConfig {
+			balances: endowed_accounts
+				.iter()
+				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
+		},
+		indices: polkadot::IndicesConfig { indices: vec![] },
+		session: polkadot::SessionConfig {
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
+						polkadot_session_keys(
+							x.2.clone(),
+							x.3.clone(),
+							x.4.clone(),
+							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
+						),
+					)
+				})
+				.collect::<Vec<_>>(),
+		},
+		staking: polkadot::StakingConfig {
+			validator_count: 50,
+			minimum_validator_count: 3,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
+		phragmen_election: Default::default(),
+		democracy: Default::default(),
+		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
+		technical_committee: polkadot::TechnicalCommitteeConfig {
+			members: vec![],
+			phantom: Default::default(),
+		},
+		technical_membership: Default::default(),
+		babe: polkadot::BabeConfig {
+			authorities: Default::default(),
+			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
+		},
+		grandpa: Default::default(),
+		im_online: Default::default(),
+		authority_discovery: polkadot::AuthorityDiscoveryConfig { keys: vec![] },
+		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: polkadot::VestingConfig { vesting: vec![] },
+		treasury: Default::default(),
+		hrmp: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
+		xcm_pallet: Default::default(),
+
+		sudo: polkadot::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 	}
 }
 
@@ -1108,6 +1203,28 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 	))
 }
 
+#[cfg(feature = "polkadot-native")]
+pub fn realis_testnet_config() -> Result<PolkadotChainSpec, String> {
+	let wasm_binary = polkadot::WASM_BINARY.ok_or("Realis development wasm not available")?;
+	let boot_nodes = vec![];
+
+	Ok(PolkadotChainSpec::from_genesis(
+		"Realis Testnet",
+		"realis_testnet",
+		ChainType::Live,
+		move || realis_testnet_config_genesis(wasm_binary),
+		boot_nodes,
+		Some(
+			TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Realis Staging telemetry url is valid; qed"),
+		),
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+		Default::default(),
+	))
+}
+
 /// Staging testnet config.
 #[cfg(feature = "kusama-native")]
 pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
@@ -1338,6 +1455,8 @@ pub fn polkadot_testnet_genesis(
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+
+		sudo: polkadot::SudoConfig { key: None },
 	}
 }
 
