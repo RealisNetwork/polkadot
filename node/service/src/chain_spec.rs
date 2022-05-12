@@ -411,7 +411,10 @@ fn realis_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig 
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
-	)> = vec![];
+	)> = vec![
+		get_authority_keys_from_seed_no_beefy("Alice"),
+		get_authority_keys_from_seed_no_beefy("Bob"),
+	];
 
 	const ENDOWMENT: u128 = 1_000_000 * DOT;
 	const STASH: u128 = 100 * DOT;
@@ -446,8 +449,8 @@ fn realis_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig 
 				.collect::<Vec<_>>(),
 		},
 		staking: polkadot::StakingConfig {
-			validator_count: 50,
-			minimum_validator_count: 3,
+			validator_count: 2,
+			minimum_validator_count: 2,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
